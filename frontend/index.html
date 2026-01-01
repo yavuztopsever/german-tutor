@@ -774,52 +774,61 @@
             chatContainer.appendChild(messageDiv);
             scrollToBottom();
 
-            // Attach audio playback on click for mobile compatibility
+            // Pre-create audio for Safari iOS compatibility
             if (hasTTS && data.tts_audio) {
                 const indicator = messageDiv.querySelector('.audio-indicator');
-                let audioPlayed = false;
 
-                const playAudio = async () => {
-                    if (audioPlayed) return;
-                    audioPlayed = true;
+                // Convert base64 to blob URL IMMEDIATELY (before user interaction)
+                const audioBlob = base64ToBlob(data.tts_audio, 'audio/mpeg');
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioElement = new Audio();
+                audioElement.src = audioUrl;
+                audioElement.preload = 'auto';
+                audioElement.load(); // Force load for Safari
 
-                    try {
-                        indicator.textContent = '🔊 Playing...';
-                        indicator.classList.add('playing');
+                let isPlaying = false;
 
-                        const audioBlob = base64ToBlob(data.tts_audio, 'audio/mpeg');
-                        const audioUrl = URL.createObjectURL(audioBlob);
-                        const audioElement = new Audio(audioUrl);
+                // Setup event listeners
+                audioElement.addEventListener('ended', () => {
+                    indicator.classList.remove('playing');
+                    indicator.textContent = '✓ Played';
+                    isPlaying = false;
+                });
 
-                        audioElement.addEventListener('ended', () => {
-                            indicator.classList.remove('playing');
-                            indicator.textContent = '✓ Played';
-                            URL.revokeObjectURL(audioUrl);
-                        });
+                audioElement.addEventListener('error', (e) => {
+                    console.error('Audio error:', e, audioElement.error);
+                    indicator.textContent = '❌ Tap to retry';
+                    indicator.classList.remove('playing');
+                    isPlaying = false;
+                });
 
-                        audioElement.addEventListener('error', (e) => {
-                            console.error('Audio playback error:', e);
+                // Safari-compatible play - MUST be synchronous in user gesture
+                const playAudio = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    if (isPlaying) return;
+                    isPlaying = true;
+
+                    indicator.textContent = '🔊 Playing...';
+                    indicator.classList.add('playing');
+
+                    // Play MUST happen synchronously for Safari iOS
+                    const playPromise = audioElement.play();
+
+                    if (playPromise !== undefined) {
+                        playPromise.catch((error) => {
+                            console.error('Play failed:', error);
                             indicator.textContent = '❌ Tap to retry';
                             indicator.classList.remove('playing');
-                            URL.revokeObjectURL(audioUrl);
-                            audioPlayed = false; // Allow retry
+                            isPlaying = false;
                         });
-
-                        await audioElement.play();
-                    } catch (error) {
-                        console.error('Audio playback error:', error);
-                        indicator.textContent = '❌ Tap to retry';
-                        indicator.classList.remove('playing');
-                        audioPlayed = false; // Allow retry
                     }
                 };
 
-                // Handle both click and touch events
+                // Use touchstart for immediate response on iOS
+                indicator.addEventListener('touchstart', playAudio, { passive: false });
                 indicator.addEventListener('click', playAudio);
-                indicator.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    playAudio();
-                });
             }
         }
 

@@ -129,8 +129,11 @@ YOUR ROLE:
 7. Adapt complexity to their A1-A2 beginner level
 8. Use their interests (music, PCB design, coding) in examples
 
-RESPONSE FORMAT - CRITICAL:
-Return ONLY this JSON structure (no markdown, no code blocks):
+RESPONSE FORMAT - ABSOLUTELY CRITICAL:
+You MUST return ONLY valid JSON. No markdown, no code blocks, no extra text, no backticks.
+Start your response with {{ and end with }}.
+
+Required JSON structure:
 {{
   "corrected_german": "[Their sentence with corrections applied]",
   "english_translation": "[English meaning of corrected sentence]",
@@ -141,6 +144,9 @@ Return ONLY this JSON structure (no markdown, no code blocks):
   "pronunciation_assessment": {{"quality": "clear/acceptable/needs_work", "issue": "specific sound if any"}},
   "continue_german": "[Your response continuing conversation naturally in German]"
 }}
+
+EXAMPLE VALID RESPONSE:
+{{"corrected_german": "Hallo, ich bin Yavuz.", "english_translation": "Hello, I am Yavuz.", "corrections": [], "pronunciation_assessment": {{"quality": "clear", "issue": null}}, "continue_german": "Schön dich kennenzulernen! Wie geht es dir heute?"}}
 
 IMPORTANT:
 - Level: Keep German simple and appropriate for {profile['current_level']}
@@ -253,7 +259,7 @@ async def get_conversation_response(user_text: str, profile: Dict, session_log: 
             model="gpt-4-turbo-preview",
             messages=messages,
             temperature=0.7,
-            max_tokens=300,
+            max_tokens=600,  # Increased to ensure complete JSON response
             response_format={"type": "json_object"}  # Enforce JSON
         )
 
