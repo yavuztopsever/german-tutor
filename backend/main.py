@@ -40,6 +40,10 @@ CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY environment variable not set")
 
+# Session management configuration
+AUTO_SAVE_INTERVAL = 3  # Save session every N exchanges
+CONTEXT_WINDOW_SIZE = 8  # Number of past exchanges to include in GPT-4 context
+
 # ============================================================================
 # FastAPI APP INITIALIZATION
 # ============================================================================
@@ -152,6 +156,27 @@ Start with something like: "Guten Tag! Wie heißt du?" or "Wie war dein Tag?"""
 # OPENAI REALTIME API INTEGRATION
 # ============================================================================
 
+def save_session_checkpoint(session_start: datetime, session_log: List, profile: Dict, session_file_path: Path):
+    """Save session checkpoint to prevent data loss"""
+    try:
+        session_data = {
+            "session_id": f"session_{session_start.isoformat()}",
+            "start_time": session_start.isoformat(),
+            "end_time": datetime.now().isoformat(),
+            "duration_minutes": round((datetime.now() - session_start).total_seconds() / 60, 2),
+            "learner_level": profile["current_level"],
+            "exchanges": len(session_log),
+            "conversation_log": session_log
+        }
+
+        with open(session_file_path, "w", encoding="utf-8") as f:
+            json.dump(session_data, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"Session checkpoint saved: {len(session_log)} exchanges")
+    except Exception as e:
+        logger.error(f"Failed to save session checkpoint: {e}")
+        # Don't raise - non-critical failure
+
 async def transcribe_audio(audio_bytes: bytes) -> str:
     """
     Transcribe audio using Whisper (via OpenAI)
@@ -177,9 +202,22 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
         # Cleanup
         os.unlink(tmp_path)
 
-        return transcript.text.strip()
+        transcribed_text = transcript.text.strip()
+
+        # Check for poor audio quality (empty or very short transcription)
+        if not transcribed_text or len(transcribed_text) < 3:
+            raise ValueError("Audio quality too poor for transcription")
+
+        return transcribed_text
 
     except Exception as e:
+        error_msg = str(e).lower()
+
+        # Check for specific audio quality errors
+        if "audio quality" in error_msg or "could not transcribe" in error_msg or len(str(e)) < 3:
+            logger.warning(f"Poor audio quality: {e}")
+            raise ValueError("AUDIO_QUALITY_ERROR")
+
         logger.error(f"Transcription error: {e}")
         raise
 
@@ -196,8 +234,8 @@ async def get_conversation_response(user_text: str, profile: Dict, session_log: 
         # Build conversation context from session
         messages = [{"role": "system", "content": system_prompt}]
 
-        # Add recent context (last 3 exchanges)
-        for log_entry in session_log[-3:]:
+        # Add recent context (configurable window size)
+        for log_entry in session_log[-CONTEXT_WINDOW_SIZE:]:
             messages.append({
                 "role": "user",
                 "content": log_entry["user_input"]
@@ -520,6 +558,11 @@ async def websocket_endpoint(websocket: WebSocket):
                             "had_tts": tts_base64 is not None
                         })
 
+                        # Auto-save every N exchanges to prevent data loss
+                        if len(session_log) % AUTO_SAVE_INTERVAL == 0:
+                            session_file = SESSIONS_DIR / f"{session_start.strftime('%Y%m%d_%H%M%S')}.json"
+                            save_session_checkpoint(session_start, session_log, profile, session_file)
+
                         # Send enhanced conversation response
                         await websocket.send_json({
                             "type": "conversation",
@@ -539,11 +582,35 @@ async def websocket_endpoint(websocket: WebSocket):
                         })
 
                     except Exception as e:
-                        logger.error(f"Audio processing error: {e}")
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": f"❌ Error processing audio: {str(e)}"
+                        error_str = str(e)
+
+                        # Log failed exchange to maintain history integrity
+                        session_log.append({
+                            "timestamp": datetime.now().isoformat(),
+                            "user_input": user_german if 'user_german' in locals() else None,
+                            "user_corrected": None,
+                            "user_translation": None,
+                            "corrections": [],
+                            "agent_response": None,
+                            "pronunciation": {},
+                            "had_tts": False,
+                            "error": error_str
                         })
+
+                        # Check for audio quality error
+                        if "AUDIO_QUALITY_ERROR" in error_str or "Audio quality too poor" in error_str:
+                            logger.warning(f"Audio quality error: {e}")
+                            await websocket.send_json({
+                                "type": "error",
+                                "error_category": "audio_quality",
+                                "message": "Untertitelung aufgrund der Audioqualität nicht möglich. / Subtitling not possible due to audio quality. Try speaking closer to the microphone or in a quieter environment."
+                            })
+                        else:
+                            logger.error(f"Audio processing error: {e}")
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": f"Error processing audio: {str(e)}"
+                            })
 
                 elif message_type == "end_session":
                     # Session ended by user
@@ -566,31 +633,41 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("WebSocket disconnected")
 
     finally:
-        # Save session to file
-        session_duration = (datetime.now() - session_start).total_seconds() / 60
+        # Save session and update profile with error handling
+        try:
+            # Calculate duration
+            session_duration = (datetime.now() - session_start).total_seconds() / 60
 
-        session_data = {
-            "session_id": f"session_{session_start.isoformat()}",
-            "start_time": session_start.isoformat(),
-            "end_time": datetime.now().isoformat(),
-            "duration_minutes": round(session_duration, 2),
-            "learner_level": profile["current_level"],
-            "exchanges": len(session_log),
-            "conversation_log": session_log
-        }
+            # Update profile FIRST (before session save for consistency)
+            profile["session_count"] += 1
+            profile["total_minutes"] += round(session_duration, 2)
+            profile["last_session"] = datetime.now().isoformat()
+            save_learner_profile(profile)
+            logger.info("Profile updated successfully")
 
-        # Write to sessions directory
-        session_file = SESSIONS_DIR / f"{session_start.strftime('%Y%m%d_%H%M%S')}.json"
-        with open(session_file, "w", encoding="utf-8") as f:
-            json.dump(session_data, f, indent=2, ensure_ascii=False)
+            # Build session data
+            session_data = {
+                "session_id": f"session_{session_start.isoformat()}",
+                "start_time": session_start.isoformat(),
+                "end_time": datetime.now().isoformat(),
+                "duration_minutes": round(session_duration, 2),
+                "learner_level": profile["current_level"],
+                "exchanges": len(session_log),
+                "conversation_log": session_log
+            }
 
-        logger.info(f"Session saved: {session_file}")
+            # Only save if session has exchanges
+            if len(session_log) > 0:
+                session_file = SESSIONS_DIR / f"{session_start.strftime('%Y%m%d_%H%M%S')}.json"
+                with open(session_file, "w", encoding="utf-8") as f:
+                    json.dump(session_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"Session saved: {session_file} ({len(session_log)} exchanges)")
+            else:
+                logger.info("Empty session - not saved to disk")
 
-        # Update profile
-        profile["session_count"] += 1
-        profile["total_minutes"] += round(session_duration, 2)
-        profile["last_session"] = datetime.now().isoformat()
-        save_learner_profile(profile)
+        except Exception as e:
+            logger.error(f"Error saving session or profile: {e}", exc_info=True)
+            # Session ends even if save fails
 
         # (Phase 4 will add Claude analysis here)
 

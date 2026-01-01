@@ -280,6 +280,24 @@
             50% { opacity: 0.6; }
         }
 
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         /* Input Controls */
         .input-controls {
             padding: 15px;
@@ -311,8 +329,64 @@
             animation: pulse 1.5s infinite;
         }
 
+        .recording-timer {
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 700;
+            color: white;
+            margin-left: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .waveform-canvas {
+            width: 100%;
+            height: 40px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            background: var(--bg);
+            display: none;
+        }
+
+        .waveform-canvas.active {
+            display: block;
+        }
+
         .hidden {
             display: none !important;
+        }
+
+        /* Error Handling */
+        .error-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(245, 54, 92, 0.1);
+            border: 1px solid var(--danger);
+            border-radius: 8px;
+            margin: 8px 15px;
+            font-size: 12px;
+        }
+
+        .error-message {
+            flex: 1;
+            color: var(--danger);
+        }
+
+        .retry-btn {
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid var(--danger);
+            border-radius: 4px;
+            background: white;
+            color: var(--danger);
+            cursor: pointer;
+        }
+
+        .retry-btn:active {
+            background: var(--danger);
+            color: white;
         }
 
         /* iPhone notch/safe area support */
@@ -354,6 +428,7 @@
 
             <!-- Push-to-Talk Button -->
             <div class="input-controls">
+                <canvas id="waveformCanvas" class="waveform-canvas"></canvas>
                 <button id="recordBtn" class="record-btn">
                     🎤 Hold to Speak
                 </button>
@@ -394,6 +469,15 @@
         let currentSessionId = null;
         let audioQueue = [];
         let isPlayingAudio = false;
+        let lastFailedOperation = null;
+        let errorContainer = null;
+        let recordingStartTime = null;
+        let recordingTimerInterval = null;
+        let audioContext = null;
+        let analyser = null;
+        let animationFrameId = null;
+        let waveformCanvas = null;
+        let waveformCtx = null;
 
         // ====================================================================
         // CHAT UI FUNCTIONS
@@ -406,6 +490,158 @@
         function formatTime(timestamp) {
             const date = new Date(timestamp);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function setStatusWithSpinner(emoji, text) {
+            statusEl.innerHTML = `<span class="spinner"></span>${emoji} ${text}`;
+        }
+
+        function showError(category, message, retryContext = null) {
+            hideError();
+            errorContainer = document.createElement('div');
+            errorContainer.className = 'error-container';
+
+            let errorIcon = '❌';
+            let actionableMessage = message;
+
+            switch(category) {
+                case 'connection':
+                    errorIcon = '📡';
+                    actionableMessage = `Connection error: ${message}`;
+                    break;
+                case 'audio':
+                    errorIcon = '🎤';
+                    actionableMessage = `Audio error: ${message}`;
+                    break;
+                case 'api':
+                    errorIcon = '⚠️';
+                    actionableMessage = `Server error: ${message}`;
+                    break;
+            }
+
+            errorContainer.innerHTML = `
+                <span class="error-message">${errorIcon} ${actionableMessage}</span>
+                ${retryContext ? '<button class="retry-btn">Retry</button>' : ''}
+            `;
+
+            const sessionControls = document.querySelector('.session-controls');
+            sessionControls.parentNode.insertBefore(errorContainer, sessionControls.nextSibling);
+
+            if (retryContext) {
+                lastFailedOperation = retryContext;
+                errorContainer.querySelector('.retry-btn').addEventListener('click', handleRetry);
+            }
+        }
+
+        function hideError() {
+            if (errorContainer) {
+                errorContainer.remove();
+                errorContainer = null;
+            }
+        }
+
+        async function handleRetry() {
+            if (!lastFailedOperation) return;
+            hideError();
+            setStatusWithSpinner('⏳', 'Retrying...');
+
+            const { type, data } = lastFailedOperation;
+            if (type === 'audio') await sendAudioToBackend(data);
+            if (type === 'websocket') connectWebSocket();
+        }
+
+        function formatRecordingTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function startRecordingTimer() {
+            recordingStartTime = Date.now();
+            recordingTimerInterval = setInterval(() => {
+                const elapsed = Date.now() - recordingStartTime;
+                const timer = document.querySelector('.recording-timer');
+                if (timer) timer.textContent = formatRecordingTime(elapsed);
+            }, 100);
+        }
+
+        function stopRecordingTimer() {
+            if (recordingTimerInterval) {
+                clearInterval(recordingTimerInterval);
+                recordingTimerInterval = null;
+            }
+        }
+
+        function initWaveform() {
+            waveformCanvas = document.getElementById('waveformCanvas');
+            waveformCtx = waveformCanvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = waveformCanvas.getBoundingClientRect();
+            waveformCanvas.width = rect.width * dpr;
+            waveformCanvas.height = rect.height * dpr;
+            waveformCtx.scale(dpr, dpr);
+        }
+
+        function startWaveform(stream) {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 64;
+            analyser.smoothingTimeConstant = 0.8;
+
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+
+            waveformCanvas.classList.add('active');
+            drawWaveform();
+        }
+
+        function drawWaveform() {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const draw = () => {
+                animationFrameId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+
+                const rect = waveformCanvas.getBoundingClientRect();
+                waveformCtx.clearRect(0, 0, rect.width, rect.height);
+
+                const barWidth = (rect.width / bufferLength) * 0.8;
+                const barGap = (rect.width / bufferLength) * 0.2;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * rect.height * 0.8;
+                    const x = i * (barWidth + barGap);
+                    const y = rect.height - barHeight;
+
+                    const gradient = waveformCtx.createLinearGradient(0, y, 0, rect.height);
+                    gradient.addColorStop(0, '#f5365c');
+                    gradient.addColorStop(1, '#667eea');
+
+                    waveformCtx.fillStyle = gradient;
+                    waveformCtx.fillRect(x, y, barWidth, barHeight);
+                }
+            };
+            draw();
+        }
+
+        function stopWaveform() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (waveformCanvas) {
+                waveformCanvas.classList.remove('active');
+                const rect = waveformCanvas.getBoundingClientRect();
+                waveformCtx.clearRect(0, 0, rect.width, rect.height);
+            }
+            if (analyser) {
+                analyser.disconnect();
+                analyser = null;
+            }
         }
 
         function renderUserMessage(data) {
@@ -604,6 +840,7 @@
                             });
                         }
 
+                        hideError();
                         statusEl.textContent = '✅ Ready';
                     }
                     else if (data.type === 'correction') {
@@ -624,10 +861,16 @@
                             });
                         }
 
+                        hideError();
                         statusEl.textContent = '✅ Ready';
                     }
                     else if (data.type === 'error') {
-                        statusEl.textContent = `❌ ${data.message}`;
+                        // Check for specific error categories
+                        if (data.error_category === 'audio_quality') {
+                            showError('audio', data.message);
+                        } else {
+                            showError('api', data.message);
+                        }
                     }
                 } catch (e) {
                     console.error('WebSocket message error:', e);
@@ -635,7 +878,7 @@
             });
 
             ws.addEventListener('error', (error) => {
-                statusEl.textContent = '❌ Connection error';
+                showError('connection', 'Lost connection', {type: 'websocket'});
                 console.error('WebSocket error:', error);
             });
 
@@ -803,8 +1046,10 @@
                 isRecording = true;
 
                 recordBtn.classList.add('recording');
-                recordBtn.textContent = '🔴 Recording... (Release to Send)';
+                recordBtn.innerHTML = '🔴 Recording... <span class="recording-timer">0:00</span>';
                 statusEl.textContent = '🎤 Listening...';
+                startRecordingTimer();
+                startWaveform(mediaStream);
 
                 // Safety timeout: auto-stop after 60 seconds
                 recordingTimeout = setTimeout(() => {
@@ -813,7 +1058,7 @@
                 }, MAX_RECORDING_TIME);
 
             } catch (error) {
-                statusEl.textContent = '❌ Microphone access denied';
+                showError('audio', 'Microphone access denied');
                 console.error('Microphone error:', error);
             }
         }
@@ -838,9 +1083,11 @@
                 }
             }
 
+            stopRecordingTimer();
+            stopWaveform();
             recordBtn.classList.remove('recording');
             recordBtn.textContent = '🎤 Hold to Speak';
-            statusEl.textContent = '⏳ Processing...';
+            setStatusWithSpinner('⏳', 'Processing...');
             isRecording = false;
         }
 
@@ -879,19 +1126,20 @@
                             type: "audio",
                             audio: base64Audio
                         }));
+                        hideError();
                     } else {
-                        statusEl.textContent = '❌ WebSocket not connected';
+                        showError('connection', 'WebSocket not connected', {type: 'websocket'});
                     }
                 };
 
                 reader.onerror = () => {
-                    statusEl.textContent = '❌ Error reading audio';
+                    showError('audio', 'Error reading audio file', {type: 'audio', data: audioBlob});
                 };
 
                 reader.readAsDataURL(audioBlob);
 
             } catch (error) {
-                statusEl.textContent = `❌ Error sending audio: ${error.message}`;
+                showError('api', error.message, {type: 'audio', data: audioBlob});
                 console.error('Audio send error:', error);
             }
         }
@@ -903,6 +1151,7 @@
         window.addEventListener('load', async () => {
             connectWebSocket();
             loadSessionList();
+            initWaveform();
 
             // Load learner profile info
             try {
