@@ -528,6 +528,10 @@
             statusEl.innerHTML = `<span class="spinner"></span>${emoji} ${text}`;
         }
 
+        function setStatus(emoji, text) {
+            statusEl.textContent = `${emoji} ${text}`;
+        }
+
         function showError(category, message, retryContext = null) {
             hideError();
             errorContainer = document.createElement('div');
@@ -903,7 +907,12 @@
                     const data = JSON.parse(event.data);
 
                     if (data.type === 'status') {
-                        statusEl.textContent = data.message;
+                        // Keep spinner for processing messages
+                        if (data.message.includes('Processing') || data.message.includes('🔄') || data.message.includes('📝')) {
+                            statusEl.innerHTML = `<span class="spinner"></span>${data.message}`;
+                        } else {
+                            statusEl.textContent = data.message;
+                        }
                     }
                     else if (data.type === 'conversation') {
                         // New format: render chat bubbles
@@ -1180,16 +1189,24 @@
 
         // Push-to-talk event listeners (both mouse and touch)
         recordBtn.addEventListener('mousedown', startRecording);
-        recordBtn.addEventListener('touchstart', startRecording);
         recordBtn.addEventListener('mouseup', stopRecording);
-        recordBtn.addEventListener('touchend', stopRecording);
-
-        // Also stop if user moves mouse/touch away from button
         recordBtn.addEventListener('mouseleave', (e) => {
             if (isRecording) {
                 stopRecording(e);
             }
         });
+
+        // Touch events with passive: false for proper preventDefault() support
+        recordBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent click event from firing
+            startRecording(e);
+        }, { passive: false });
+
+        recordBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopRecording(e);
+        }, { passive: false });
+
         recordBtn.addEventListener('touchcancel', (e) => {
             if (isRecording) {
                 stopRecording(e);
