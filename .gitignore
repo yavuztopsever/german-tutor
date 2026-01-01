@@ -1,0 +1,31 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Environment variables and secrets
+.env
+backend/.env
+
+# User data
+sessions/
+learner_profile.json
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

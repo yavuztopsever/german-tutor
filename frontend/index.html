@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>🇩🇪 German Tutor</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #667eea;
+            --primary-hover: #5568d3;
+            --danger: #f5365c;
+            --success: #2dce89;
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --text: #333333;
+            --text-muted: #666666;
+            --border: #e9ecef;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        .container {
+            background: var(--card);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 90vw;
+            max-width: 500px;
+            max-height: 95vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Session Controls */
+        .session-controls {
+            display: flex;
+            gap: 8px;
+            padding: 12px 15px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .session-controls button {
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--primary);
+            color: white;
+        }
+
+        .session-controls button:hover {
+            background: var(--primary-hover);
+        }
+
+        .session-controls select {
+            flex: 1;
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+        }
+
+        #deleteSessionBtn {
+            background: var(--danger);
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            font-size: 11px;
+        }
+
+        .status-bar #status {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .status-bar #sessionInfo {
+            color: var(--text-muted);
+        }
+
+        /* Chat Container */
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fafafa;
+        }
+
+        /* Message Bubbles */
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+        }
+
+        .message.agent {
+            align-self: flex-start;
+        }
+
+        .message-bubble {
+            padding: 10px 14px;
+            border-radius: 16px;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-bubble {
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.agent .message-bubble {
+            background: white;
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+
+        .correction {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .corrected {
+            color: #2dce89;
+            font-weight: 600;
+        }
+
+        .message.agent .corrected {
+            color: var(--success);
+        }
+
+        .message-translation {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .message-time {
+            font-size: 10px;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+
+        .details-toggle {
+            font-size: 11px;
+            margin-top: 6px;
+            cursor: pointer;
+            opacity: 0.7;
+            user-select: none;
+        }
+
+        .details-toggle:hover {
+            opacity: 1;
+        }
+
+        .message-details {
+            display: none;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .message-details.expanded {
+            display: block;
+        }
+
+        .detail-item {
+            margin-bottom: 4px;
+            padding: 4px 0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .audio-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            margin-top: 6px;
+            opacity: 0.8;
+        }
+
+        .audio-indicator.playing {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Input Controls */
+        .input-controls {
+            padding: 15px;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+        }
+
+        .record-btn {
+            width: 100%;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            background: var(--primary);
+            color: white;
+        }
+
+        .record-btn:active {
+            background: var(--primary-hover);
+            transform: scale(0.98);
+        }
+
+        .record-btn.recording {
+            background: var(--danger);
+            animation: pulse 1.5s infinite;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* iPhone notch/safe area support */
+        @supports (padding: max(0px)) {
+            .container {
+                padding-top: max(10px, env(safe-area-inset-top));
+                padding-bottom: max(10px, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🇩🇪 German Tutor</h1>
+            <p>Speak naturally, learn through conversation</p>
+        </div>
+
+        <div class="content">
+            <!-- Session Controls -->
+            <div class="session-controls">
+                <button id="newSessionBtn">New</button>
+                <select id="sessionSelect">
+                    <option value="current">Current Session</option>
+                </select>
+                <button id="deleteSessionBtn">Delete</button>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <span id="status">Connecting...</span>
+                <span id="sessionInfo">Level A1</span>
+            </div>
+
+            <!-- Chat Container -->
+            <div id="chatContainer" class="chat-container">
+                <!-- Messages will be rendered here dynamically -->
+            </div>
+
+            <!-- Push-to-Talk Button -->
+            <div class="input-controls">
+                <button id="recordBtn" class="record-btn">
+                    🎤 Hold to Speak
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================
+        // CONFIGURATION
+        // ====================================================================
+
+        const API_BASE = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const API_HOST = window.location.host;
+        const WS_URL = `${API_BASE}//${API_HOST}/ws/session`;
+
+        // ====================================================================
+        // DOM ELEMENTS
+        // ====================================================================
+
+        const recordBtn = document.getElementById('recordBtn');
+        const statusEl = document.getElementById('status');
+        const sessionInfoEl = document.getElementById('sessionInfo');
+        const chatContainer = document.getElementById('chatContainer');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const sessionSelect = document.getElementById('sessionSelect');
+        const deleteSessionBtn = document.getElementById('deleteSessionBtn');
+
+        // ====================================================================
+        // STATE
+        // ====================================================================
+
+        let ws = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let mediaStream = null;
+        let currentSessionId = null;
+        let audioQueue = [];
+        let isPlayingAudio = false;
+
+        // ====================================================================
+        // CHAT UI FUNCTIONS
+        // ====================================================================
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderUserMessage(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+
+            const timestamp = data.timestamp || new Date().toISOString();
+            const original = data.original_german || '';
+            const corrected = data.corrected_german || original;
+            const translation = data.english_translation || '';
+            const corrections = data.corrections || [];
+
+            // Build message text with inline corrections
+            let messageText = corrected;
+            if (corrections.length > 0 && original !== corrected) {
+                // Show both original (strikethrough) and corrected
+                messageText = `<span class="correction">${original}</span> → <span class="corrected">${corrected}</span>`;
+            }
+
+            let html = `
+                <div class="message-bubble">
+                    <div class="message-text">${messageText}</div>
+                    ${translation ? `<div class="message-translation">${translation}</div>` : ''}
+                    <div class="message-time">${formatTime(timestamp)}</div>
+                    ${corrections.length > 0 ? '<div class="details-toggle">Show details ▼</div>' : ''}
+                </div>
+            `;
+
+            // Add details section if there are corrections
+            if (corrections.length > 0) {
+                let detailsHtml = '<div class="message-details">';
+                corrections.forEach(corr => {
+                    detailsHtml += `
+                        <div class="detail-item">
+                            <span class="detail-label">${corr.type}:</span>
+                            "${corr.original}" → "${corr.corrected}"
+                            ${corr.reason ? `<br><small>${corr.reason}</small>` : ''}
+                        </div>
+                    `;
+                });
+
+                // Add pronunciation feedback if available
+                if (data.pronunciation && data.pronunciation.issue) {
+                    detailsHtml += `
+                        <div class="detail-item">
+                            <span class="detail-label">Pronunciation:</span>
+                            ${data.pronunciation.issue}
+                        </div>
+                    `;
+                }
+
+                detailsHtml += '</div>';
+                html += detailsHtml;
+            }
+
+            messageDiv.innerHTML = html;
+
+            // Add click handler for details toggle
+            const toggle = messageDiv.querySelector('.details-toggle');
+            const details = messageDiv.querySelector('.message-details');
+            if (toggle && details) {
+                toggle.addEventListener('click', () => {
+                    details.classList.toggle('expanded');
+                    toggle.textContent = details.classList.contains('expanded')
+                        ? 'Hide details ▲'
+                        : 'Show details ▼';
+                });
+            }
+
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function renderAgentMessage(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message agent';
+
+            const timestamp = data.timestamp || new Date().toISOString();
+            const germanText = data.german_text || '';
+            const translation = data.english_translation || '';
+            const hasTTS = data.tts_audio ? true : false;
+
+            const html = `
+                <div class="message-bubble">
+                    <div class="message-text">${germanText}</div>
+                    ${translation ? `<div class="message-translation">${translation}</div>` : ''}
+                    <div class="message-time">${formatTime(timestamp)}</div>
+                    ${hasTTS ? '<div class="audio-indicator" id="audio-indicator">🔊 Ready to play</div>' : ''}
+                </div>
+            `;
+
+            messageDiv.innerHTML = html;
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+
+            // Queue TTS audio if available
+            if (hasTTS && data.tts_audio) {
+                const indicator = messageDiv.querySelector('.audio-indicator');
+                audioQueue.push({ audio: data.tts_audio, indicator });
+                processAudioQueue();
+            }
+        }
+
+        // ====================================================================
+        // TTS AUDIO PLAYBACK
+        // ====================================================================
+
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
+        }
+
+        async function processAudioQueue() {
+            if (isPlayingAudio || audioQueue.length === 0) {
+                return;
+            }
+
+            isPlayingAudio = true;
+            const { audio, indicator } = audioQueue.shift();
+
+            try {
+                const audioBlob = base64ToBlob(audio, 'audio/mpeg');
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioElement = new Audio(audioUrl);
+
+                indicator.classList.add('playing');
+                indicator.textContent = '🔊 Playing...';
+
+                audioElement.addEventListener('ended', () => {
+                    indicator.classList.remove('playing');
+                    indicator.textContent = '✓ Played';
+                    URL.revokeObjectURL(audioUrl);
+                    isPlayingAudio = false;
+                    // Process next in queue
+                    processAudioQueue();
+                });
+
+                audioElement.addEventListener('error', () => {
+                    indicator.textContent = '❌ Playback error';
+                    URL.revokeObjectURL(audioUrl);
+                    isPlayingAudio = false;
+                    processAudioQueue();
+                });
+
+                await audioElement.play();
+            } catch (error) {
+                console.error('Audio playback error:', error);
+                indicator.textContent = '❌ Playback failed';
+                isPlayingAudio = false;
+                processAudioQueue();
+            }
+        }
+
+        // ====================================================================
+        // WEBSOCKET CONNECTION
+        // ====================================================================
+
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+
+            ws.addEventListener('open', () => {
+                statusEl.textContent = '✅ Connected';
+            });
+
+            ws.addEventListener('message', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'status') {
+                        statusEl.textContent = data.message;
+                    }
+                    else if (data.type === 'conversation') {
+                        // New format: render chat bubbles
+                        if (data.user_message) {
+                            renderUserMessage({
+                                timestamp: data.timestamp,
+                                original_german: data.user_message.original_german,
+                                corrected_german: data.user_message.corrected_german,
+                                english_translation: data.user_message.english_translation,
+                                corrections: data.user_message.corrections,
+                                pronunciation: data.user_message.pronunciation
+                            });
+                        }
+
+                        if (data.agent_message) {
+                            renderAgentMessage({
+                                timestamp: data.timestamp,
+                                german_text: data.agent_message.german_text,
+                                english_translation: data.agent_message.english_translation,
+                                tts_audio: data.agent_message.tts_audio
+                            });
+                        }
+
+                        statusEl.textContent = '✅ Ready';
+                    }
+                    else if (data.type === 'correction') {
+                        // Legacy format support (backwards compatibility)
+                        renderUserMessage({
+                            original_german: data.original_german || '',
+                            corrected_german: data.corrected_german || '',
+                            english_translation: data.english_translation || '',
+                            corrections: data.corrections || [],
+                            pronunciation: data.pronunciation
+                        });
+
+                        if (data.agent_response) {
+                            renderAgentMessage({
+                                german_text: data.agent_response,
+                                english_translation: '',
+                                tts_audio: null
+                            });
+                        }
+
+                        statusEl.textContent = '✅ Ready';
+                    }
+                    else if (data.type === 'error') {
+                        statusEl.textContent = `❌ ${data.message}`;
+                    }
+                } catch (e) {
+                    console.error('WebSocket message error:', e);
+                }
+            });
+
+            ws.addEventListener('error', (error) => {
+                statusEl.textContent = '❌ Connection error';
+                console.error('WebSocket error:', error);
+            });
+
+            ws.addEventListener('close', () => {
+                statusEl.textContent = '⚠️ Reconnecting...';
+                // Attempt reconnect after 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            });
+        }
+
+        // ====================================================================
+        // SESSION MANAGEMENT
+        // ====================================================================
+
+        async function loadSessionList() {
+            try {
+                const response = await fetch('/api/sessions');
+                const data = await response.json();
+
+                sessionSelect.innerHTML = '<option value="current">Current Session</option>';
+
+                if (data.sessions && data.sessions.length > 0) {
+                    data.sessions.forEach(session => {
+                        const option = document.createElement('option');
+                        option.value = session.session_id;
+                        option.textContent = `${new Date(session.start_time).toLocaleString()} (${session.exchanges} exchanges)`;
+                        sessionSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+            }
+        }
+
+        async function loadSessionMessages(sessionId) {
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}`);
+                const data = await response.json();
+
+                // Clear chat
+                chatContainer.innerHTML = '';
+
+                // Render all exchanges
+                if (data.conversation_log) {
+                    data.conversation_log.forEach(exchange => {
+                        renderUserMessage({
+                            timestamp: exchange.timestamp,
+                            original_german: exchange.user_input,
+                            corrected_german: exchange.user_corrected,
+                            english_translation: exchange.user_translation,
+                            corrections: exchange.corrections || [],
+                            pronunciation: exchange.pronunciation
+                        });
+
+                        if (exchange.agent_response) {
+                            renderAgentMessage({
+                                timestamp: exchange.timestamp,
+                                german_text: exchange.agent_response,
+                                english_translation: '',
+                                tts_audio: null  // Historical messages don't have audio
+                            });
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading session:', error);
+                statusEl.textContent = '❌ Failed to load session';
+            }
+        }
+
+        newSessionBtn.addEventListener('click', async () => {
+            if (confirm('Start a new session? Current conversation will be saved.')) {
+                chatContainer.innerHTML = '';
+                currentSessionId = null;
+                statusEl.textContent = '✅ New session started';
+
+                try {
+                    const response = await fetch('/api/sessions/new', { method: 'POST' });
+                    const data = await response.json();
+                    currentSessionId = data.session_id;
+                    sessionInfoEl.textContent = `Session ${data.session_number} | Level ${data.learner_level}`;
+                } catch (error) {
+                    console.error('Error creating session:', error);
+                }
+
+                loadSessionList();
+            }
+        });
+
+        sessionSelect.addEventListener('change', (e) => {
+            const sessionId = e.target.value;
+            if (sessionId === 'current') {
+                // Stay on current session
+                return;
+            }
+            loadSessionMessages(sessionId);
+        });
+
+        deleteSessionBtn.addEventListener('click', async () => {
+            const selectedSession = sessionSelect.value;
+            if (selectedSession === 'current') {
+                alert('Cannot delete current session');
+                return;
+            }
+
+            // Find the filename from the selected session
+            const selectedOption = sessionSelect.options[sessionSelect.selectedIndex];
+            if (!selectedOption) return;
+
+            if (confirm('Delete this session permanently?')) {
+                try {
+                    // Extract filename from session list
+                    const response = await fetch('/api/sessions');
+                    const data = await response.json();
+                    const session = data.sessions.find(s => s.session_id === selectedSession);
+
+                    if (session) {
+                        await fetch(`/api/sessions/${session.filename}`, { method: 'DELETE' });
+                        statusEl.textContent = '✅ Session deleted';
+                        loadSessionList();
+                        sessionSelect.value = 'current';
+                    }
+                } catch (error) {
+                    console.error('Error deleting session:', error);
+                    statusEl.textContent = '❌ Failed to delete session';
+                }
+            }
+        });
+
+        // ====================================================================
+        // AUDIO RECORDING (Push-to-Talk)
+        // ====================================================================
+
+        let recordingTimeout = null;
+        const MAX_RECORDING_TIME = 60000; // 60 seconds safety limit
+
+        async function startRecording(e) {
+            e.preventDefault(); // Prevent default touch/mouse behavior
+
+            if (isRecording) return; // Already recording
+
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 24000
+                    }
+                });
+
+                mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+                audioChunks = [];
+
+                mediaRecorder.addEventListener('dataavailable', (event) => {
+                    audioChunks.push(event.data);
+                });
+
+                mediaRecorder.addEventListener('stop', async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendAudioToBackend(audioBlob);
+                });
+
+                mediaRecorder.start();
+                isRecording = true;
+
+                recordBtn.classList.add('recording');
+                recordBtn.textContent = '🔴 Recording... (Release to Send)';
+                statusEl.textContent = '🎤 Listening...';
+
+                // Safety timeout: auto-stop after 60 seconds
+                recordingTimeout = setTimeout(() => {
+                    statusEl.textContent = '⚠️ Max recording time reached';
+                    stopRecording();
+                }, MAX_RECORDING_TIME);
+
+            } catch (error) {
+                statusEl.textContent = '❌ Microphone access denied';
+                console.error('Microphone error:', error);
+            }
+        }
+
+        function stopRecording(e) {
+            if (e) e.preventDefault();
+
+            if (!isRecording) return; // Not recording
+
+            // Clear safety timeout
+            if (recordingTimeout) {
+                clearTimeout(recordingTimeout);
+                recordingTimeout = null;
+            }
+
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+
+                // Stop all media tracks
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+            }
+
+            recordBtn.classList.remove('recording');
+            recordBtn.textContent = '🎤 Hold to Speak';
+            statusEl.textContent = '⏳ Processing...';
+            isRecording = false;
+        }
+
+        // Push-to-talk event listeners (both mouse and touch)
+        recordBtn.addEventListener('mousedown', startRecording);
+        recordBtn.addEventListener('touchstart', startRecording);
+        recordBtn.addEventListener('mouseup', stopRecording);
+        recordBtn.addEventListener('touchend', stopRecording);
+
+        // Also stop if user moves mouse/touch away from button
+        recordBtn.addEventListener('mouseleave', (e) => {
+            if (isRecording) {
+                stopRecording(e);
+            }
+        });
+        recordBtn.addEventListener('touchcancel', (e) => {
+            if (isRecording) {
+                stopRecording(e);
+            }
+        });
+
+        // ====================================================================
+        // SEND AUDIO TO BACKEND
+        // ====================================================================
+
+        async function sendAudioToBackend(audioBlob) {
+            try {
+                // Convert blob to base64
+                const reader = new FileReader();
+
+                reader.onload = () => {
+                    const base64Audio = reader.result.split(',')[1];
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: "audio",
+                            audio: base64Audio
+                        }));
+                    } else {
+                        statusEl.textContent = '❌ WebSocket not connected';
+                    }
+                };
+
+                reader.onerror = () => {
+                    statusEl.textContent = '❌ Error reading audio';
+                };
+
+                reader.readAsDataURL(audioBlob);
+
+            } catch (error) {
+                statusEl.textContent = `❌ Error sending audio: ${error.message}`;
+                console.error('Audio send error:', error);
+            }
+        }
+
+        // ====================================================================
+        // INITIALIZATION
+        // ====================================================================
+
+        window.addEventListener('load', async () => {
+            connectWebSocket();
+            loadSessionList();
+
+            // Load learner profile info
+            try {
+                const response = await fetch('/api/profile');
+                const profile = await response.json();
+                sessionInfoEl.textContent = `Level ${profile.current_level}`;
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+
+            // Request notification permission for future features
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        });
+
+        // ====================================================================
+        // PAGE UNLOAD
+        // ====================================================================
+
+        window.addEventListener('beforeunload', () => {
+            if (ws) {
+                ws.send(JSON.stringify({ type: "end_session" }));
+                ws.close();
+            }
+
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
