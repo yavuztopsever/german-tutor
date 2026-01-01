@@ -259,7 +259,7 @@ async def get_conversation_response(user_text: str, profile: Dict, session_log: 
             model="gpt-4-turbo-preview",
             messages=messages,
             temperature=0.7,
-            max_tokens=600,  # Increased to ensure complete JSON response
+            max_tokens=2000,  # Large buffer for complete JSON with corrections and explanations
             response_format={"type": "json_object"}  # Enforce JSON
         )
 
