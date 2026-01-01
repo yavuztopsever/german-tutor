@@ -195,9 +195,11 @@
         }
 
         .message-text {
-            font-size: 14px;
-            line-height: 1.4;
+            font-size: 15px;
+            line-height: 1.5;
             margin-bottom: 4px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .correction {
@@ -207,7 +209,11 @@
 
         .corrected {
             color: #2dce89;
-            font-weight: 600;
+            font-weight: 700;
+        }
+
+        .message.user .corrected {
+            color: #a3f7d0;
         }
 
         .message.agent .corrected {
@@ -233,10 +239,20 @@
             cursor: pointer;
             opacity: 0.7;
             user-select: none;
+            padding: 8px 4px;
+            margin: 0 -4px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(0,0,0,0.1);
         }
 
         .details-toggle:hover {
             opacity: 1;
+        }
+
+        .details-toggle:active {
+            opacity: 1;
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
         }
 
         .message-details {
@@ -269,6 +285,22 @@
             font-size: 11px;
             margin-top: 6px;
             opacity: 0.8;
+            cursor: pointer;
+            padding: 6px 8px;
+            margin: 6px -8px 0 -8px;
+            border-radius: 4px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(102, 126, 234, 0.2);
+            transition: all 0.2s;
+        }
+
+        .audio-indicator:hover {
+            opacity: 1;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .audio-indicator:active {
+            background: rgba(102, 126, 234, 0.2);
         }
 
         .audio-indicator.playing {
@@ -699,16 +731,21 @@
 
             messageDiv.innerHTML = html;
 
-            // Add click handler for details toggle
+            // Add click and touch handler for details toggle
             const toggle = messageDiv.querySelector('.details-toggle');
             const details = messageDiv.querySelector('.message-details');
             if (toggle && details) {
-                toggle.addEventListener('click', () => {
+                const toggleDetails = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     details.classList.toggle('expanded');
                     toggle.textContent = details.classList.contains('expanded')
                         ? 'Hide details ▲'
                         : 'Show details ▼';
-                });
+                };
+
+                toggle.addEventListener('click', toggleDetails);
+                toggle.addEventListener('touchend', toggleDetails);
             }
 
             chatContainer.appendChild(messageDiv);
@@ -729,7 +766,7 @@
                     <div class="message-text">${germanText}</div>
                     ${translation ? `<div class="message-translation">${translation}</div>` : ''}
                     <div class="message-time">${formatTime(timestamp)}</div>
-                    ${hasTTS ? '<div class="audio-indicator" id="audio-indicator">🔊 Ready to play</div>' : ''}
+                    ${hasTTS ? '<div class="audio-indicator" data-audio-ready="true">🔊 Tap to play</div>' : ''}
                 </div>
             `;
 
@@ -737,11 +774,52 @@
             chatContainer.appendChild(messageDiv);
             scrollToBottom();
 
-            // Queue TTS audio if available
+            // Attach audio playback on click for mobile compatibility
             if (hasTTS && data.tts_audio) {
                 const indicator = messageDiv.querySelector('.audio-indicator');
-                audioQueue.push({ audio: data.tts_audio, indicator });
-                processAudioQueue();
+                let audioPlayed = false;
+
+                const playAudio = async () => {
+                    if (audioPlayed) return;
+                    audioPlayed = true;
+
+                    try {
+                        indicator.textContent = '🔊 Playing...';
+                        indicator.classList.add('playing');
+
+                        const audioBlob = base64ToBlob(data.tts_audio, 'audio/mpeg');
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        const audioElement = new Audio(audioUrl);
+
+                        audioElement.addEventListener('ended', () => {
+                            indicator.classList.remove('playing');
+                            indicator.textContent = '✓ Played';
+                            URL.revokeObjectURL(audioUrl);
+                        });
+
+                        audioElement.addEventListener('error', (e) => {
+                            console.error('Audio playback error:', e);
+                            indicator.textContent = '❌ Tap to retry';
+                            indicator.classList.remove('playing');
+                            URL.revokeObjectURL(audioUrl);
+                            audioPlayed = false; // Allow retry
+                        });
+
+                        await audioElement.play();
+                    } catch (error) {
+                        console.error('Audio playback error:', error);
+                        indicator.textContent = '❌ Tap to retry';
+                        indicator.classList.remove('playing');
+                        audioPlayed = false; // Allow retry
+                    }
+                };
+
+                // Handle both click and touch events
+                indicator.addEventListener('click', playAudio);
+                indicator.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    playAudio();
+                });
             }
         }
 
