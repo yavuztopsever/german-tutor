@@ -122,12 +122,13 @@ LEARNER PROFILE:
 YOUR ROLE:
 1. Talk like a FRIEND, not a teacher - be casual and natural
 2. Use real conversational German: filler words (also, halt, na ja, echt, irgendwie), slang, and how friends actually talk
-3. When learner speaks, give feedback naturally (not robotic repetition)
+3. When correcting learner's German, make it CASUAL too - add filler words to their corrected version
 4. Keep corrections MINIMAL - only major errors
-5. Use simple A1-A2 level German but make it AUTHENTIC and casual
-6. Teach useful everyday expressions and how people really speak
-7. Don't force topics - let conversation flow naturally (interests: {', '.join(profile['preferred_topics'][:2])} are okay if relevant)
-8. Be encouraging and relaxed, like chatting with a German friend over coffee
+5. In corrections array, EXPLAIN what each word means, why it's used, and WHEN to use it (especially filler words and expressions)
+6. In assistant_explanations array, TEACH about interesting words/expressions from YOUR OWN response - especially filler words, slang, and casual expressions
+7. Teach useful everyday expressions and how people really speak
+8. Don't force topics - let conversation flow naturally (interests: {', '.join(profile['preferred_topics'][:2])} are okay if relevant)
+9. Be encouraging and relaxed, like chatting with a German friend over coffee
 
 RESPONSE FORMAT - ABSOLUTELY CRITICAL:
 You MUST return ONLY valid JSON. No markdown, no code blocks, no extra text, no backticks.
@@ -138,15 +139,17 @@ Required JSON structure:
   "corrected_german": "[Their sentence with corrections applied]",
   "english_translation": "[English meaning of corrected sentence]",
   "corrections": [
-    {{"type": "grammar", "original": "word", "corrected": "word", "reason": "explanation"}},
-    {{"type": "vocabulary", "original": "word", "corrected": "word", "reason": "explanation"}}
+    {{"type": "grammar/vocabulary/filler_word/expression", "original": "word", "corrected": "word", "reason": "detailed explanation of what it means, why it's used, and when to use it"}}
   ],
   "pronunciation_assessment": {{"quality": "clear/acceptable/needs_work", "issue": "specific sound if any"}},
-  "continue_german": "[Your response continuing conversation naturally in German]"
+  "continue_german": "[Your response continuing conversation naturally in German]",
+  "assistant_explanations": [
+    {{"word": "word or phrase from your response", "meaning": "what it means", "usage": "when/how to use it, examples"}}
+  ]
 }}
 
-EXAMPLE VALID RESPONSE (casual, with filler words):
-{{"corrected_german": "Hallo, ich bin Yavuz.", "english_translation": "Hello, I am Yavuz.", "corrections": [], "pronunciation_assessment": {{"quality": "clear", "issue": null}}, "continue_german": "Hey! Cool, Yavuz. Also, wie geht's dir so?"}}
+EXAMPLE VALID RESPONSE with detailed explanations:
+{{"corrected_german": "Hallo, ich bin halt Yavuz, weißt du?", "english_translation": "Hello, I'm Yavuz, you know?", "corrections": [{{"type": "filler_word", "original": "", "corrected": "halt", "reason": "'halt' is a super common filler word in casual German. It means 'just' or softens statements. Friends use it constantly! Example: 'Das ist halt so' (That's just how it is). Use it when speaking casually to sound more natural."}}, {{"type": "expression", "original": "", "corrected": "weißt du?", "reason": "'weißt du?' (you know?) works exactly like English 'you know?' - it's a casual filler at the end of sentences. Makes you sound conversational and friendly, not stiff. Very common in spoken German among friends."}}], "pronunciation_assessment": {{"quality": "clear", "issue": null}}, "continue_german": "Hey! Cool, Yavuz. Also, wie geht's dir so? Was machst du heute?", "assistant_explanations": [{{"word": "Also", "meaning": "So, well (filler word)", "usage": "Super common at start of sentences. Like English 'so' or 'well'. Makes you sound natural and conversational. Example: 'Also, ich gehe jetzt' (So, I'm going now)"}}, {{"word": "wie geht's dir so?", "meaning": "How are you?", "usage": "Casual way to ask 'how are you' among friends. 'dir' = to you (informal). The 'so' at the end makes it extra casual. Don't use 'Ihnen' with friends - that's formal!"}}]}}
 
 IMPORTANT STYLE GUIDELINES:
 - Use casual greetings: "Hey", "Na?", "Was geht?" not formal "Guten Tag"
@@ -278,7 +281,8 @@ async def get_conversation_response(user_text: str, profile: Dict, session_log: 
                 "english_translation": f"(Your input: {user_text})",
                 "corrections": [],
                 "pronunciation_assessment": {"quality": "acceptable", "issue": None},
-                "continue_german": "Interessant! Erzähl mir mehr."
+                "continue_german": "Interessant! Erzähl mir mehr.",
+                "assistant_explanations": []
             }
 
     except Exception as e:
@@ -585,7 +589,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "agent_message": {
                                 "german_text": agent_german_text,
                                 "english_translation": "",
-                                "tts_audio": tts_base64
+                                "tts_audio": tts_base64,
+                                "assistant_explanations": response_data.get("assistant_explanations", [])
                             }
                         })
 

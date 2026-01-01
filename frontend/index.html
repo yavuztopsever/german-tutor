@@ -773,17 +773,53 @@
             const germanText = data.german_text || '';
             const translation = data.english_translation || '';
             const hasTTS = data.tts_audio ? true : false;
+            const explanations = data.assistant_explanations || [];
 
-            const html = `
+            let html = `
                 <div class="message-bubble">
                     <div class="message-text">${germanText}</div>
                     ${translation ? `<div class="message-translation">${translation}</div>` : ''}
                     <div class="message-time">${formatTime(timestamp)}</div>
                     ${hasTTS ? '<div class="audio-indicator" data-audio-ready="true">🔊 Hör zu! (Tap to listen)</div>' : ''}
+                    ${explanations.length > 0 ? '<div class="details-toggle">Show details ▼</div>' : ''}
                 </div>
             `;
 
+            // Add details section if there are explanations
+            if (explanations.length > 0) {
+                let detailsHtml = '<div class="message-details">';
+                explanations.forEach(exp => {
+                    detailsHtml += `
+                        <div class="detail-item">
+                            <span class="detail-label">${exp.word}:</span>
+                            ${exp.meaning}
+                            ${exp.usage ? `<br><small>${exp.usage}</small>` : ''}
+                        </div>
+                    `;
+                });
+                detailsHtml += '</div>';
+                html += detailsHtml;
+            }
+
             messageDiv.innerHTML = html;
+
+            // Add click and touch handler for details toggle
+            const toggle = messageDiv.querySelector('.details-toggle');
+            const details = messageDiv.querySelector('.message-details');
+            if (toggle && details) {
+                const toggleDetails = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    details.classList.toggle('expanded');
+                    toggle.textContent = details.classList.contains('expanded')
+                        ? 'Hide details ▲'
+                        : 'Show details ▼';
+                };
+
+                toggle.addEventListener('click', toggleDetails);
+                toggle.addEventListener('touchend', toggleDetails);
+            }
+
             chatContainer.appendChild(messageDiv);
             scrollToBottom();
 
