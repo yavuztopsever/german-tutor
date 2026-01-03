@@ -215,7 +215,8 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
         # Cleanup
         os.unlink(tmp_path)
 
-        transcribed_text = transcript.text.strip()
+        # When response_format="text", transcript is a string, not an object
+        transcribed_text = transcript.strip()
 
         # Check for poor audio quality (empty or very short transcription)
         if not transcribed_text or len(transcribed_text) < 3:
