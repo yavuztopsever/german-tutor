@@ -471,7 +471,7 @@
             <div class="input-controls">
                 <canvas id="waveformCanvas" class="waveform-canvas"></canvas>
                 <button id="recordBtn" class="record-btn">
-                    🎤 Hold to Speak
+                    🎤 Tap to Speak
                 </button>
             </div>
         </div>
@@ -1150,17 +1150,13 @@
         });
 
         // ====================================================================
-        // AUDIO RECORDING (Push-to-Talk)
+        // AUDIO RECORDING (Tap to Start/Stop)
         // ====================================================================
 
         let recordingTimeout = null;
         const MAX_RECORDING_TIME = 60000; // 60 seconds safety limit
 
-        async function startRecording(e) {
-            e.preventDefault(); // Prevent default touch/mouse behavior
-
-            if (isRecording) return; // Already recording
-
+        async function startRecording() {
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
@@ -1200,7 +1196,7 @@
                 isRecording = true;
 
                 recordBtn.classList.add('recording');
-                recordBtn.innerHTML = '🔴 Recording... <span class="recording-timer">0:00</span>';
+                recordBtn.innerHTML = '⏹️ Tap to Stop <span class="recording-timer">0:00</span>';
                 statusEl.textContent = '🎤 Listening...';
                 startRecordingTimer();
                 startWaveform(mediaStream);
@@ -1217,9 +1213,7 @@
             }
         }
 
-        function stopRecording(e) {
-            if (e) e.preventDefault();
-
+        function stopRecording() {
             if (!isRecording) return; // Not recording
 
             // Clear safety timeout
@@ -1240,30 +1234,24 @@
             stopRecordingTimer();
             stopWaveform();
             recordBtn.classList.remove('recording');
-            recordBtn.textContent = '🎤 Hold to Speak';
+            recordBtn.textContent = '🎤 Tap to Speak';
             setStatusWithSpinner('⏳', 'Processing...');
             isRecording = false;
         }
 
-        // Push-to-talk event listeners (both mouse and touch)
-        recordBtn.addEventListener('mousedown', startRecording);
-        recordBtn.addEventListener('mouseup', stopRecording);
-        recordBtn.addEventListener('mouseleave', (e) => {
-            if (isRecording) {
-                stopRecording(e);
-            }
-        });
-
-        // Touch events with passive: false for proper preventDefault() support
-        recordBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent click event from firing
-            startRecording(e);
-        }, { passive: false });
-
-        recordBtn.addEventListener('touchend', (e) => {
+        // Toggle recording on click/tap
+        function toggleRecording(e) {
             e.preventDefault();
-            stopRecording(e);
-        }, { passive: false });
+
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        // Single event listener for both desktop and mobile
+        recordBtn.addEventListener('click', toggleRecording);
 
         recordBtn.addEventListener('touchcancel', (e) => {
             if (isRecording) {
