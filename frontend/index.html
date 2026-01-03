@@ -1171,7 +1171,20 @@
                     }
                 });
 
-                mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+                // Try to use audio formats that Whisper API handles better
+                // Prefer MP4/M4A which is more compatible than WebM/Opus
+                let mimeType = 'audio/webm';
+                const preferredTypes = ['audio/mp4', 'audio/mpeg', 'audio/webm;codecs=opus'];
+
+                for (const type of preferredTypes) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        mimeType = type;
+                        console.log(`Using audio format: ${mimeType}`);
+                        break;
+                    }
+                }
+
+                mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
                 audioChunks = [];
 
                 mediaRecorder.addEventListener('dataavailable', (event) => {
@@ -1179,7 +1192,7 @@
                 });
 
                 mediaRecorder.addEventListener('stop', async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
                     await sendAudioToBackend(audioBlob);
                 });
 

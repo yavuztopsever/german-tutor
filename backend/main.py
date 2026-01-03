@@ -191,11 +191,12 @@ def save_session_checkpoint(session_start: datetime, session_log: List, profile:
 async def transcribe_audio(audio_bytes: bytes) -> str:
     """
     Transcribe audio using Whisper (via OpenAI)
-    Audio format: WebM/Opus from browser → convert to WAV
+    Audio format: MP4/WebM from browser
     """
     try:
         # Write audio to temporary file
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+        # Use .m4a extension as it's more compatible with Whisper
+        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tmp:
             tmp.write(audio_bytes)
             tmp_path = tmp.name
 
@@ -207,7 +208,8 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
                 model="whisper-1",
                 file=audio_file,
                 language="de",  # Force German recognition
-                prompt="German language learning conversation"
+                prompt="German language learning conversation",
+                response_format="text"
             )
 
         # Cleanup
